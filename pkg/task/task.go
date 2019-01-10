@@ -9,15 +9,17 @@ import (
 	"time"
 
 	"github.com/golang/glog"
+	"github.com/google/go-github/v21/github"
 	"go.etcd.io/etcd/client"
+	"golang.org/x/oauth2"
 )
 
 type Task struct {
-	Name     string
-	FullName string
-	Repo     string
-	Owner    string
-	Ref      string
+	Name             string
+	PullRequestEvent *github.PullRequestEvent
+	PushEvent        *github.PushEvent
+	Token            *oauth2.Token
+	Config           *oauth2.Config
 }
 
 func (t *Task) Refresh(id string, store []string) error {

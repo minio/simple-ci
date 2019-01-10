@@ -62,20 +62,7 @@ func Run() error {
 		}
 	}()
 
-	t := &task.Task{
-		Name:     viper.GetString("ip"),
-		Owner:    "wlan0",
-		Repo:     "test-task",
-		FullName: "wlan0/test-task",
-		Ref:      "test-task",
-	}
-	glog.Infof("adding task: %s", t.Name)
-	if err := task.AddTask(id, store, t); err != nil {
-		glog.Errorf("error adding task: %s", t.Name)
-		return err
-	}
-
-	return startCIServer()
+	return startCIServer(id, store)
 }
 
 func processTask(id string, store []string, t *task.Task, errChan chan error) {
@@ -98,7 +85,12 @@ func processTask(id string, store []string, t *task.Task, errChan chan error) {
 			}
 		}
 	}()
-	<-time.After(2 * time.Minute)
+	if t.PullRequestEvent != nil {
+		processPullRequest(t)
+	}
+	if t.PushEvent != nil {
+		processPush(t)
+	}
 	glog.Infof("clearing task: %s", t.Name)
 	if err := task.ClearTask(id, store, t); err != nil {
 		glog.Errorf("error clearing task: %s", t.Name)
