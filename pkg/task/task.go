@@ -68,6 +68,7 @@ retry:
 		Quorum:    true,
 	})
 	if err != nil {
+		glog.Errorf("error getting key: %s: %v", tasksDir, err)
 		return nil, err
 	}
 
@@ -86,13 +87,13 @@ retry:
 			} else if eErr.Code == client.ErrorCodeNodeExist {
 				continue
 			}
-			glog.Errorf("error creating lock for task: %s", key)
+			glog.Errorf("error creating lock for task: %s: %v", key, err)
 			return nil, err
 		} else {
 			t := &Task{}
 			glog.V(8).Infof("get task: obtained lock for %s: %v", key, task.Value)
 			if err := json.Unmarshal([]byte(task.Value), &t); err != nil {
-				glog.Errorf("invalid task struct for task: %s", key)
+				glog.Errorf("invalid task struct for task: %s: %v", key, err)
 				return nil, err
 			}
 			return t, nil
@@ -105,6 +106,7 @@ retry:
 }
 
 func AddTask(id string, store []string, t *Task) error {
+	glog.Infof("adding task: %s", id)
 	peersDir := strings.TrimRight(id, "/")
 	peersDir = strings.TrimRight(peersDir, "simple-ci")
 	tasksDir := filepath.Join(peersDir, "simple-ci_tasks")
@@ -115,7 +117,7 @@ func AddTask(id string, store []string, t *Task) error {
 
 	c, err := client.New(cfg)
 	if err != nil {
-		glog.Errorf("error adding task: could not create etcd client")
+		glog.Errorf("error adding task: could not create etcd client: %v", err)
 		return err
 	}
 
@@ -123,13 +125,23 @@ func AddTask(id string, store []string, t *Task) error {
 
 	taskVal, err := json.MarshalIndent(t, "", " ")
 	if err != nil {
-		glog.Errorf("error adding task: %s", t.Name)
+		glog.Errorf("error adding task: %s: %v", t.Name, err)
 		return err
 	}
+retry:
 	if _, err := kAPI.Set(context.Background(), filepath.Join(tasksDir, t.Name), string(taskVal), &client.SetOptions{
 		PrevExist: client.PrevNoExist,
 	}); err != nil {
-		glog.Errorf("error adding task: %s", t.Name)
+		if eErr, ok := err.(client.Error); !ok {
+			glog.Error("invalid error type: %v", err)
+			return err
+		} else if eErr.Code == client.ErrorCodeNodeExist {
+			glog.Infof("node already exists, retying: errCode: %#v", eErr)
+			<-time.After(30 * time.Second)
+			goto retry
+		}
+		glog.Errorf("error adding task: %s: %v", t.Name, err)
+
 		return err
 	}
 	return nil
@@ -146,13 +158,13 @@ func ClearTask(id string, store []string, t *Task) error {
 
 	c, err := client.New(cfg)
 	if err != nil {
-		glog.Errorf("error clearing task: could not create etcd client")
+		glog.Errorf("error clearing task: could not create etcd client: %v", err)
 		return err
 	}
 
 	kAPI := client.NewKeysAPI(c)
-	if _, err := kAPI.Set(context.Background(), filepath.Join(tasksDir, t.Name), "", &client.SetOptions{}); err != nil {
-		glog.Errorf("error clearing task: %s", t.Name)
+	if _, err := kAPI.Delete(context.Background(), filepath.Join(tasksDir, t.Name), &client.DeleteOptions{}); err != nil {
+		glog.Errorf("error clearing task: %s: %v", t.Name, err)
 		return err
 	}
 	return nil

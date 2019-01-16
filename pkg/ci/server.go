@@ -1,7 +1,6 @@
 package ci
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"io/ioutil"
@@ -17,6 +16,7 @@ import (
 	"github.com/google/go-github/v21/github"
 	"github.com/minio/minio-go"
 	"github.com/spf13/viper"
+	"github.com/wlan0/simple-ci/pkg/minlog"
 	"github.com/wlan0/simple-ci/pkg/task"
 	"golang.org/x/oauth2"
 	ghub "golang.org/x/oauth2/github"
@@ -34,7 +34,7 @@ func startCIServer(id string, store []string) error {
 	addr := fmt.Sprintf("%s:%d", viper.GetString("ip"), viper.GetInt("port"))
 	selfURL := viper.GetString("github-endpoint")
 	webhookSecret := viper.GetString("webhook-secret")
-	githubID := viper.GetString("github-client-id")
+	githubID := viper.GetString("github-id")
 	githubSecret := viper.GetString("github-secret")
 
 	conf := &oauth2.Config{
@@ -87,7 +87,7 @@ func (c *ciHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		vals := strings.Split(r.URL.Path, "/")
 		sha := vals[len(vals)-1]
 
-		mc, err := minio.New(viper.GetString("s3-url"), viper.GetString("s3-access-key"), viper.GetString("s3-secret"), false)
+		mc, err := minio.New(viper.GetString("s3-endpoint"), viper.GetString("s3-access-key"), viper.GetString("s3-secret"), false)
 		if err != nil {
 			log.Printf("could not connect with s3: %v", err)
 			return
@@ -132,9 +132,8 @@ func (c *ciHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					Config:    c.config,
 				}
 				if err := task.AddTask(c.id, c.store, t); err != nil {
-					log.Printf("error adding task: %s", t.Name)
-					w.WriteHeader(http.StatusInternalServerError)
 					w.Write([]byte(err.Error()))
+					w.WriteHeader(http.StatusInternalServerError)
 					return
 				}
 			}()
@@ -149,9 +148,8 @@ func (c *ciHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					Config:           c.config,
 				}
 				if err := task.AddTask(c.id, c.store, t); err != nil {
-					log.Printf("error adding task: %s", t.Name)
-					w.WriteHeader(http.StatusInternalServerError)
 					w.Write([]byte(err.Error()))
+					w.WriteHeader(http.StatusInternalServerError)
 					return
 				}
 			}()
@@ -174,13 +172,27 @@ func processPullRequest(t *task.Task) {
 	pr := pullRequestEvent.GetPullRequest()
 	head := pr.GetHead()
 	sha := *(head.SHA)
-	owner := *(head.Repo.Owner.Login)
-	repo := *(head.Repo.Owner.Name)
+
+	nameParts := strings.Split(*head.Repo.FullName, "/")
+	ownerObj := head.Repo.Owner
+	if ownerObj == nil {
+		ownerObj = pullRequestEvent.Repo.Owner
+	}
+	owner := *ownerObj.Login
+	if org := pullRequestEvent.Organization; org != nil {
+		owner = *org.Login
+	}
+	repo := nameParts[1]
+
+	log.Printf("processing pull_request %s/%s:%s fullname:%s", owner, repo, sha, *head.Repo.FullName)
 	branchRef := plumbing.NewBranchReferenceName(*head.Ref)
 
-	mc, err := minio.New(viper.GetString("s3-url"), viper.GetString("s3-access-key"), viper.GetString("s3-secret"), false)
+	s3URL := viper.GetString("s3-endpoint")
+	accessKey := viper.GetString("s3-access-key")
+	secretKey := viper.GetString("s3-secret")
+	mc, err := minio.New(s3URL, accessKey, secretKey, false)
 	if err != nil {
-		log.Printf("could not connect with s3: %v", err)
+		log.Printf("could not connect with s3:%s: user: %s pass: %s err:%v", s3URL, accessKey, secretKey, err)
 		return
 	}
 	id := viper.GetString("id")
@@ -199,24 +211,26 @@ func processPullRequest(t *task.Task) {
 		}
 	}
 
-	if _, err := mc.GetObject(bucket, sha, minio.GetObjectOptions{}); err != nil {
-		log.Printf("commit already processed")
+	if obj, err := mc.GetObject(bucket, fmt.Sprintf("%s.log", sha), minio.GetObjectOptions{}); err == nil {
+		if _, err := obj.Stat(); err == nil {
+			log.Printf("commit already processed: %s/%s.log", bucket, sha)
+			return
+		}
+	}
+
+	f := minlog.New(mc, bucket, fmt.Sprintf("%s.log", sha))
+	log := log.New(f, "", 0)
+	if err := updateStatus(config, token, owner, repo, sha, github.String("pending")); err != nil {
+		log.Printf("error updating status for %s%s:%s %v", owner, repo, sha, err)
 		return
 	}
 
-	if err := updateStatus(config, token, owner, repo, sha, github.String("pending")); err != nil {
-		log.Printf("error updating status for %s/%s:%s %v", owner, repo, sha, err)
-		return
-	}
 	doneStatus := "error"
 	defer updateStatus(config, token, owner, repo, sha, &doneStatus)
 
-	f := &bytes.Buffer{}
-	log := log.New(f, "", 0)
-
 	oauthClient := config.Client(oauth2.NoContext, token)
 	client := github.NewClient(oauthClient)
-	repoObj, _, err := client.Repositories.Get(context.Background(), owner, repo)
+	repoObj, _, err := client.Repositories.Get(context.Background(), nameParts[0], repo)
 	if err != nil {
 		log.Printf("error getting repository: %v", err)
 		return
@@ -232,6 +246,7 @@ func processPullRequest(t *task.Task) {
 		log.Printf("error getting localRepo: %v", err)
 		return
 	}
+	defer os.RemoveAll(filepath.Join("tmp", sha))
 	workTree, err := localRepo.Worktree()
 	if err != nil {
 		log.Printf("error getting worktree: %v", err)
@@ -270,13 +285,6 @@ func processPullRequest(t *task.Task) {
 		doneStatus = "failure"
 		return
 	}
-	if _, err := mc.PutObject(bucket, fmt.Sprintf("%s.log", sha), f, int64(f.Len()), minio.PutObjectOptions{
-		ContentType: "encoding/text",
-	}); err != nil {
-		log.Printf("error pushing logs for commit:%s to minio: %v", sha, err)
-		doneStatus = "error"
-		return
-	}
 	doneStatus = "success"
 	return
 }
@@ -290,13 +298,13 @@ func processPush(t *task.Task) {
 	sha := pushEvent.GetAfter()
 
 	if err := updateStatus(config, token, owner, repo, sha, github.String("pending")); err != nil {
-		log.Printf("error updating status for %s/%s:%s %v", owner, repo, sha, err)
+		log.Printf("error updating status for %s%s:%s %v", owner, repo, sha, err)
 		return
 	}
 	doneStatus := "error"
 	defer updateStatus(config, token, owner, repo, sha, &doneStatus)
 
-	mc, err := minio.New(viper.GetString("s3-url"), viper.GetString("s3-access-key"), viper.GetString("s3-secret"), false)
+	mc, err := minio.New(viper.GetString("s3-endpoint"), viper.GetString("s3-access-key"), viper.GetString("s3-secret"), false)
 	if err != nil {
 		log.Printf("could not connect with s3: %v", err)
 		return
@@ -317,12 +325,15 @@ func processPush(t *task.Task) {
 		}
 	}
 
-	if _, err := mc.GetObject(bucket, sha, minio.GetObjectOptions{}); err != nil {
-		log.Printf("commit already processed")
-		return
+	if obj, err := mc.GetObject(bucket, fmt.Sprintf("%s.log", sha), minio.GetObjectOptions{}); err == nil {
+		if _, err := obj.Stat(); err == nil {
+			log.Printf("commit already processed: %s/%s.log", bucket, sha)
+			return
+		}
 	}
 
-	f := &bytes.Buffer{}
+	log.Printf("processing push %s/%s:%s fullname:%s", owner, repo, sha, *(pushEvent.GetRepo().FullName))
+	f := minlog.New(mc, bucket, fmt.Sprintf("%s.log", sha))
 	log := log.New(f, "", 0)
 
 	oauthClient := config.Client(oauth2.NoContext, token)
@@ -342,6 +353,7 @@ func processPush(t *task.Task) {
 		log.Printf("error getting localRepo: %v", err)
 		return
 	}
+	defer os.RemoveAll(filepath.Join("tmp", sha))
 	workTree, err := localRepo.Worktree()
 	if err != nil {
 		log.Printf("error getting worktree: %v", err)
@@ -378,13 +390,6 @@ func processPush(t *task.Task) {
 	if err != nil {
 		log.Printf("error running ci task for %s/%s:%s: %v", owner, repo, sha, err)
 		doneStatus = "failure"
-		return
-	}
-	if _, err := mc.PutObject(bucket, fmt.Sprintf("%s.log", sha), f, int64(f.Len()), minio.PutObjectOptions{
-		ContentType: "encoding/text",
-	}); err != nil {
-		log.Printf("error pushing logs for commit:%s to minio: %v", sha, err)
-		doneStatus = "error"
 		return
 	}
 	doneStatus = "success"

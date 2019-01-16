@@ -32,9 +32,16 @@ func init() {
 	RootCmd.Flags().Int("port", 8888, "port at which simple-ci server listens")
 
 	RootCmd.Flags().String("github-endpoint", "", "callback endpoint of the simple-ci server")
-	RootCmd.Flags().String("github-client-id", "", "github client id of the simple-ci server")
+	RootCmd.Flags().String("github-id", "", "github client id of the simple-ci server")
 	RootCmd.Flags().String("github-secret", "", "github secret of the simple-ci server")
 	RootCmd.Flags().String("webhook-secret", "", "webhook secret of the simple-ci github application")
+
+	RootCmd.Flags().String("s3-endpoint", "", "s3 compatible backend to store logs(required)")
+	RootCmd.Flags().String("s3-access-key", "", "access key to the s3 backend")
+	RootCmd.Flags().String("s3-secret", "", "secret key to the s3 backend")
+
+	RootCmd.Flags().String("app-name", "simple-ci", "name of the app to show in github status")
+	RootCmd.Flags().String("description", "", "short message to show in the github status")
 
 	// parse the go default flagset to get flags for glog and other packages in future
 	RootCmd.Flags().AddGoFlagSet(flag.CommandLine)
