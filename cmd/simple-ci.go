@@ -43,6 +43,8 @@ func init() {
 	RootCmd.Flags().String("app-name", "simple-ci", "name of the app to show in github status")
 	RootCmd.Flags().String("description", "", "short message to show in the github status")
 
+	RootCmd.Flags().String("token", "", "the access token (bearer) for the github app")
+
 	// parse the go default flagset to get flags for glog and other packages in future
 	RootCmd.Flags().AddGoFlagSet(flag.CommandLine)
 

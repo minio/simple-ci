@@ -2,6 +2,7 @@ package ci
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -36,6 +37,8 @@ func startCIServer(id string, store []string) error {
 	webhookSecret := viper.GetString("webhook-secret")
 	githubID := viper.GetString("github-id")
 	githubSecret := viper.GetString("github-secret")
+	token := viper.GetString("token")
+	//TBD: token type and expiry flags
 
 	conf := &oauth2.Config{
 		ClientID:     githubID,
@@ -47,6 +50,14 @@ func startCIServer(id string, store []string) error {
 		RedirectURL: selfURL,
 	}
 
+	var t *oauth2.Token
+	if token != "" {
+		t = &oauth2.Token{
+			AccessToken: token,
+			TokenType:   "bearer",
+		}
+	}
+
 	s := &http.Server{
 		Addr: addr,
 		Handler: &ciHandler{
@@ -55,6 +66,7 @@ func startCIServer(id string, store []string) error {
 			webhookSecret: []byte(webhookSecret),
 			id:            id,
 			store:         store,
+			token:         t,
 		},
 		ReadTimeout:    10 * time.Second,
 		WriteTimeout:   10 * time.Second,
@@ -271,6 +283,7 @@ func processPullRequest(t *task.Task) {
 		Args: []string{
 			"/usr/bin/docker",
 			"build",
+			"--rm",
 			"-t",
 			fmt.Sprintf("%s/%s:%s", owner, repo, sha),
 			".",
@@ -378,6 +391,8 @@ func processPush(t *task.Task) {
 		Args: []string{
 			"/usr/bin/docker",
 			"build",
+			"-f",
+			"Dockerfile.simpleci",
 			"-t",
 			fmt.Sprintf("%s/%s:%s", owner, repo, sha),
 			".",
@@ -409,6 +424,14 @@ func (c *ciHandler) exchangeToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	c.token = token
+	t, err := json.MarshalIndent(token, "", " ")
+	if err != nil {
+		log.Printf("token obtained, but could not save to filesystem: %v", err)
+		return
+	}
+	if err := ioutil.WriteFile("token", t, 0664); err != nil {
+		log.Printf("error saving token to file: %v", err)
+	}
 }
 
 func updateStatus(config *oauth2.Config, token *oauth2.Token, owner, repo, sha string, status *string) error {
