@@ -169,3 +169,59 @@ func ClearTask(id string, store []string, t *Task) error {
 	}
 	return nil
 }
+
+func SetToken(id string, store []string, t *oauth2.Token) error {
+	peersDir := strings.TrimRight(id, "/")
+	peersDir = strings.TrimRight(peersDir, "simple-ci")
+	tokenFile := filepath.Join(peersDir, "simple-ci_token")
+	cfg := client.Config{
+		Endpoints: store,
+		Transport: client.DefaultTransport,
+	}
+
+	c, err := client.New(cfg)
+	if err != nil {
+		glog.Errorf("error writing token: could not create etcd client: %v", err)
+		return err
+	}
+
+	tokenVal, err := json.MarshalIndent(t, "", " ")
+	if err != nil {
+		glog.Errorf("error marshalling token: %s: %v", t, err)
+		return err
+	}
+	kAPI := client.NewKeysAPI(c)
+	_, err = kAPI.Set(context.Background(), tokenFile, string(tokenVal), &client.SetOptions{
+		PrevExist: client.PrevNoExist,
+	})
+	return err
+}
+
+func GetToken(id string, store []string) (*oauth2.Token, error) {
+	peersDir := strings.TrimRight(id, "/")
+	peersDir = strings.TrimRight(peersDir, "simple-ci")
+	tokenFile := filepath.Join(peersDir, "simple-ci_token")
+	cfg := client.Config{
+		Endpoints: store,
+		Transport: client.DefaultTransport,
+	}
+
+	c, err := client.New(cfg)
+	if err != nil {
+		glog.Errorf("error getting token: could not create etcd client: %v", err)
+		return nil, err
+	}
+
+	kAPI := client.NewKeysAPI(c)
+	resp, err := kAPI.Get(context.Background(), tokenFile, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	token := &oauth2.Token{}
+	if err := json.Unmarshal([]byte(resp.Node.Value), token); err != nil {
+		return nil, err
+	}
+
+	return token, nil
+}

@@ -12,6 +12,8 @@ require (
 	github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b
 	github.com/google/go-github/v21 v21.0.0
 	github.com/google/shlex v0.0.0-20181106134648-c34317bd91bf // indirect
+	github.com/gopherjs/vecty v0.0.0-20190121081546-d00da0c86b42 // indirect
+	github.com/gorilla/websocket v1.4.0
 	github.com/josharian/impl v0.0.0-20180228163738-3d0f908298c4 // indirect
 	github.com/jstemmer/gotags v1.4.1 // indirect
 	github.com/kisielk/errcheck v1.1.0 // indirect
@@ -20,9 +22,12 @@ require (
 	github.com/mattn/go-isatty v0.0.4 // indirect
 	github.com/mdempsky/gocode v0.0.0-20181226182234-be056ad32a5e // indirect
 	github.com/minio/minio-go v6.0.12+incompatible
+	github.com/neelance/astrewrite v0.0.0-20160511093645-99348263ae86 // indirect
+	github.com/neelance/sourcemap v0.0.0-20151028013722-8c68805598ab // indirect
 	github.com/nicksnyder/go-i18n v1.10.0 // indirect
 	github.com/peterh/liner v1.1.0 // indirect
 	github.com/rogpeppe/godef v1.1.1 // indirect
+	github.com/shurcooL/httpfs v0.0.0-20181222201310-74dc9339e414 // indirect
 	github.com/sirupsen/logrus v1.2.0 // indirect
 	github.com/spf13/cobra v0.0.3
 	github.com/spf13/viper v1.3.1

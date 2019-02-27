@@ -1,2 +1,8 @@
 simple-ci
 bin
+tmp
+token
+deployment.yml
+service.yml
+setupenv.sh
+local

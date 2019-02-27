@@ -8,6 +8,7 @@ import (
 	"log"
 	"math/rand"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -15,6 +16,7 @@ import (
 	"time"
 
 	"github.com/google/go-github/v21/github"
+	"github.com/gorilla/websocket"
 	"github.com/minio/minio-go"
 	"github.com/spf13/viper"
 	"github.com/wlan0/simple-ci/pkg/minlog"
@@ -24,6 +26,8 @@ import (
 	"gopkg.in/src-d/go-git.v4"
 	"gopkg.in/src-d/go-git.v4/plumbing"
 )
+
+var upgrader = websocket.Upgrader{}
 
 var state string
 
@@ -85,6 +89,28 @@ type ciHandler struct {
 }
 
 func (c *ciHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	(w).Header().Set("Access-Control-Allow-Origin", "*")
+	(w).Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
+	(w).Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization")
+
+	if strings.HasPrefix(r.URL.Path, "/view") {
+		file := strings.Trim(r.URL.Path[5:], "/")
+		if file == "" {
+			file = "index.html"
+		}
+		b, e := ioutil.ReadFile(filepath.Join("ui", file))
+		if e != nil {
+			b, e = ioutil.ReadFile(filepath.Join("ui", "index.html"))
+			if e != nil {
+				w.WriteHeader(500)
+				w.Write([]byte(e.Error()))
+				return
+			}
+		}
+		w.Write(b)
+		return
+	}
+
 	if r.URL.Path == "/login" {
 		if c.token != nil {
 			w.WriteHeader(http.StatusNotFound)
@@ -92,6 +118,55 @@ func (c *ciHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		url := c.config.AuthCodeURL(state, oauth2.AccessTypeOnline)
 		http.Redirect(w, r, url, http.StatusTemporaryRedirect)
+		return
+	}
+
+	if strings.HasPrefix(r.URL.Path, "/ws") {
+		tx, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			log.Print("upgrade:", err)
+			return
+		}
+		defer tx.Close()
+
+		vals := strings.Split(r.URL.Path, "/")
+		sha := vals[len(vals)-1]
+
+		u := url.URL{Scheme: "ws", Host: viper.GetString("log-backend"), Path: fmt.Sprintf("/read/%s.log", sha)}
+		log.Printf("connecting to %s", u.String())
+
+		rx, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
+		defer rx.Close()
+		if err == nil {
+			done := make(chan bool, 1)
+			errChan := make(chan error, 1)
+			go func() {
+				defer close(done)
+				for {
+					_, message, err := rx.ReadMessage()
+					if err != nil {
+						if !websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseAbnormalClosure) {
+							errChan <- err
+							log.Println("read:", err)
+						}
+						break
+					}
+					err = tx.WriteMessage(websocket.TextMessage, message)
+					if err != nil {
+						log.Println("write:", err)
+						return
+					}
+				}
+			}()
+
+			select {
+			case <-done:
+				return
+			case <-errChan:
+				log.Printf("logger ws server could not fetch data, trying minio backend")
+			}
+
+		}
 		return
 	}
 
@@ -173,8 +248,17 @@ func (c *ciHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	c.exchangeToken(w, r)
 }
 
-func processPullRequest(t *task.Task) {
+func processPullRequest(id string, store []string, t *task.Task) {
 	token := t.Token
+	if token == nil {
+		var err error
+		token, err = task.GetToken(id, store)
+		if err != nil {
+			log.Printf("error getting token: %v", err)
+			return
+		}
+	}
+
 	config := t.Config
 	pullRequestEvent := t.PullRequestEvent
 	if *(pullRequestEvent.Action) != "opened" && *(pullRequestEvent.Action) != "synchronize" {
@@ -207,7 +291,6 @@ func processPullRequest(t *task.Task) {
 		log.Printf("could not connect with s3:%s: user: %s pass: %s err:%v", s3URL, accessKey, secretKey, err)
 		return
 	}
-	id := viper.GetString("id")
 	bucket := strings.Trim(strings.Replace(id, "/", "-", -1), "-")
 	err = mc.MakeBucket(bucket, "")
 	if err != nil {
@@ -231,6 +314,8 @@ func processPullRequest(t *task.Task) {
 	}
 
 	f := minlog.New(mc, bucket, fmt.Sprintf("%s.log", sha))
+	defer f.Close()
+
 	log := log.New(f, "", 0)
 	if err := updateStatus(config, token, owner, repo, sha, github.String("pending")); err != nil {
 		log.Printf("error updating status for %s%s:%s %v", owner, repo, sha, err)
@@ -284,6 +369,8 @@ func processPullRequest(t *task.Task) {
 			"/usr/bin/docker",
 			"build",
 			"--rm",
+			"-f",
+			"Dockerfile.simpleci",
 			"-t",
 			fmt.Sprintf("%s/%s:%s", owner, repo, sha),
 			".",
@@ -302,8 +389,17 @@ func processPullRequest(t *task.Task) {
 	return
 }
 
-func processPush(t *task.Task) {
+func processPush(id string, store []string, t *task.Task) {
 	token := t.Token
+	if token == nil {
+		var err error
+		token, err = task.GetToken(id, store)
+		if err != nil {
+			log.Printf("error getting token: %v", err)
+			return
+		}
+	}
+
 	config := t.Config
 	pushEvent := t.PushEvent
 	repo := *(pushEvent.GetRepo().Name)
@@ -322,7 +418,6 @@ func processPush(t *task.Task) {
 		log.Printf("could not connect with s3: %v", err)
 		return
 	}
-	id := viper.GetString("id")
 	bucket := strings.Trim(strings.Replace(id, "/", "-", -1), "-")
 	err = mc.MakeBucket(bucket, "")
 	if err != nil {
@@ -347,6 +442,7 @@ func processPush(t *task.Task) {
 
 	log.Printf("processing push %s/%s:%s fullname:%s", owner, repo, sha, *(pushEvent.GetRepo().FullName))
 	f := minlog.New(mc, bucket, fmt.Sprintf("%s.log", sha))
+	defer f.Close()
 	log := log.New(f, "", 0)
 
 	oauthClient := config.Client(oauth2.NoContext, token)
@@ -432,6 +528,10 @@ func (c *ciHandler) exchangeToken(w http.ResponseWriter, r *http.Request) {
 	if err := ioutil.WriteFile("token", t, 0664); err != nil {
 		log.Printf("error saving token to file: %v", err)
 	}
+
+	if err := task.SetToken(c.id, c.store, token); err != nil {
+		log.Printf("error saving token to etcd: %v", err)
+	}
 }
 
 func updateStatus(config *oauth2.Config, token *oauth2.Token, owner, repo, sha string, status *string) error {
@@ -440,7 +540,7 @@ func updateStatus(config *oauth2.Config, token *oauth2.Token, owner, repo, sha s
 
 	_, _, err := client.Repositories.CreateStatus(context.Background(), owner, repo, sha, &github.RepoStatus{
 		State:       status,
-		TargetURL:   github.String(fmt.Sprintf("%s/logs/%s", viper.GetString("github-endpoint"), sha)),
+		TargetURL:   github.String(fmt.Sprintf("%s/view/%s", viper.GetString("github-endpoint"), sha)),
 		Description: github.String(viper.GetString("description")),
 		Context:     github.String(viper.GetString("app-name")),
 	})

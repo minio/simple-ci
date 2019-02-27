@@ -40,6 +40,8 @@ func init() {
 	RootCmd.Flags().String("s3-access-key", "", "access key to the s3 backend")
 	RootCmd.Flags().String("s3-secret", "", "secret key to the s3 backend")
 
+	RootCmd.Flags().String("log-backend", "", "backend to push logs to")
+
 	RootCmd.Flags().String("app-name", "simple-ci", "name of the app to show in github status")
 	RootCmd.Flags().String("description", "", "short message to show in the github status")
 
