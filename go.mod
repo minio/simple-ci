@@ -1,4 +1,4 @@
-module github.com/wlan0/simple-ci
+module github.com/minio/simple-ci
 
 require (
 	github.com/alecthomas/gometalinter v2.0.12+incompatible // indirect

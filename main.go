@@ -18,7 +18,7 @@ package main
 
 import (
 	"github.com/golang/glog"
-	"github.com/wlan0/simple-ci/cmd"
+	"github.com/minio/simple-ci/cmd"
 )
 
 func main() {

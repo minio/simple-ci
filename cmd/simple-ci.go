@@ -22,7 +22,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"github.com/wlan0/simple-ci/pkg/ci"
+	"github.com/minio/simple-ci/pkg/ci"
 
 	_ "github.com/golang/glog"
 )

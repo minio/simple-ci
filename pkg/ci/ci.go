@@ -22,8 +22,8 @@ import (
 
 	"github.com/golang/glog"
 	"github.com/spf13/viper"
-	"github.com/wlan0/simple-ci/pkg/coord"
-	"github.com/wlan0/simple-ci/pkg/task"
+	"github.com/minio/simple-ci/pkg/coord"
+	"github.com/minio/simple-ci/pkg/task"
 )
 
 func Run() error {

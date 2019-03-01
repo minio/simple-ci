@@ -26,7 +26,7 @@ import (
 	"github.com/gopherjs/gopherjs/js"
 	"github.com/gopherjs/vecty"
 	"github.com/gopherjs/websocket"
-	"github.com/wlan0/simple-ci/ui/pkg/components"
+	"github.com/minio/simple-ci/ui/pkg/components"
 )
 
 var items = []vecty.MarkupOrChild{}

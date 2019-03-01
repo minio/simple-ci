@@ -4,10 +4,10 @@ github.com/gopherjs/vecty v0.0.0-20190121081546-d00da0c86b42 h1:LlU+AwUtJDx5tjLz
 github.com/gopherjs/vecty v0.0.0-20190121081546-d00da0c86b42/go.mod h1:cCfq26X9MMEw/ZgZRpDDNSWfC7CO/u2ba/nGpjEVM/o=
 github.com/gopherjs/websocket v0.0.0-20170522004412-87ee47603f13 h1:3TcZe31zyrteCrSU2+4QSSx9N6sQC6PjXwrHjfX3USM=
 github.com/gopherjs/websocket v0.0.0-20170522004412-87ee47603f13/go.mod h1:jd+zY81Fx2lC4bfw58+Rflg1srqmedQjbBUejKOjYNY=
+github.com/minio/simple-ci v0.0.0-20190119023607-53b4bfe45e03 h1:BTCwNmQs09DEvr/kF8dQskGPKJjv57hTjjEAHWMvGtk=
 github.com/sourcegraph/annotate v0.0.0-20160123013949-f4cad6c6324d h1:yKm7XZV6j9Ev6lojP2XaIshpT4ymkqhMeSghO5Ps00E=
 github.com/sourcegraph/annotate v0.0.0-20160123013949-f4cad6c6324d/go.mod h1:UdhH50NIW0fCiwBSr0co2m7BnFLdv4fQTgdqdJTHFeE=
 github.com/sourcegraph/syntaxhighlight v0.0.0-20170531221838-bd320f5d308e h1:qpG93cPwA5f7s/ZPBJnGOYQNK/vKsaDaseuKT5Asee8=
 github.com/sourcegraph/syntaxhighlight v0.0.0-20170531221838-bd320f5d308e/go.mod h1:HuIsMU8RRBOtsCgI77wP899iHVBQpCmg4ErYMZB+2IA=
-github.com/wlan0/simple-ci v0.0.0-20190119023607-53b4bfe45e03 h1:BTCwNmQs09DEvr/kF8dQskGPKJjv57hTjjEAHWMvGtk=
 honnef.co/go/js/dom v0.0.0-20181202134054-9dbdcd412bde h1:a/zxkB+dOtFR2DO19YIQtrpHfuZVprzJsA19Og0p53A=
 honnef.co/go/js/dom v0.0.0-20181202134054-9dbdcd412bde/go.mod h1:sUMDUKNB2ZcVjt92UnLy3cdGs+wDAcrPdV3JP6sVgA4=
