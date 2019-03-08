@@ -342,6 +342,7 @@ func processPullRequest(id string, store []string, t *task.Task) {
 	defer updateStatus(config, token, owner, repo, sha, &doneStatus)
 
 	oauthClient := config.Client(oauth2.NoContext, token)
+	oauthClient.Jar = &gitCookieJar{}
 	client := github.NewClient(oauthClient)
 	repoObj, _, err := client.Repositories.Get(context.Background(), nameParts[0], repo)
 	if err != nil {
@@ -462,6 +463,7 @@ func processPush(id string, store []string, t *task.Task) {
 	log := log.New(f, "", 0)
 
 	oauthClient := config.Client(oauth2.NoContext, token)
+	oauthClient.Jar = &gitCookieJar{}
 	client := github.NewClient(oauthClient)
 	repoObj, _, err := client.Repositories.Get(context.Background(), owner, repo)
 	if err != nil {

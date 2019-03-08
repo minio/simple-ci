@@ -1,5 +1,0 @@
-#!/bin/bash
-
-docker run --restart=always -d -e IP=172.17.0.2 minio/simple-ci --id /tmp/simple-ci/6/simple-ci --store http://etcd.chicken-or-egg.com:2379
-docker run --restart=always -d -e IP=172.17.0.3 minio/simple-ci --id /tmp/simple-ci/6/simple-ci --store http://etcd.chicken-or-egg.com:2379
-docker run --restart=always -d -e IP=172.17.0.4 minio/simple-ci --id /tmp/simple-ci/6/simple-ci --store http://etcd.chicken-or-egg.com:2379

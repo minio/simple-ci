@@ -3,9 +3,11 @@ module github.com/minio/simple-ci
 require (
 	github.com/alecthomas/gometalinter v2.0.12+incompatible // indirect
 	github.com/alecthomas/units v0.0.0-20151022065526-2efee857e7cf // indirect
+	github.com/boltdb/bolt v1.3.1 // indirect
 	github.com/cosiner/argv v0.0.1 // indirect
 	github.com/davidrjenni/reftools v0.0.0-20180914123528-654d0ba4f96d // indirect
 	github.com/derekparker/delve v1.1.0 // indirect
+	github.com/elves/elvish v0.10.1 // indirect
 	github.com/fatih/gomodifytags v0.0.0-20180914191908-141225bf62b6 // indirect
 	github.com/fatih/motion v0.0.0-20180408211639-218875ebe238 // indirect
 	github.com/go-ini/ini v1.41.0 // indirect
@@ -32,6 +34,7 @@ require (
 	github.com/spf13/cobra v0.0.3
 	github.com/spf13/viper v1.3.1
 	github.com/stamblerre/gocode v0.0.0-20181212030458-2f9d39d8f31d // indirect
+	github.com/xiaq/persistent v0.0.0-20181118145548-6bf9d6baeece // indirect
 	github.com/zmb3/gogetdoc v0.0.0-20181208215853-c5ca8f4d4936 // indirect
 	go.etcd.io/etcd v3.3.10+incompatible
 	golang.org/x/arch v0.0.0-20181203225421-5a4828bb7045 // indirect

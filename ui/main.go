@@ -80,6 +80,7 @@ func main() {
 					fmt.Printf("read err: %v", err)
 				}
 				lineCh <- string(message)
+				done <- true
 				fmt.Println("done")
 				break
 			}
