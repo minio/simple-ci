@@ -34,9 +34,9 @@ import (
 	"github.com/google/go-github/v21/github"
 	"github.com/gorilla/websocket"
 	"github.com/minio/minio-go"
-	"github.com/spf13/viper"
 	"github.com/minio/simple-ci/pkg/minlog"
 	"github.com/minio/simple-ci/pkg/task"
+	"github.com/spf13/viper"
 	"golang.org/x/oauth2"
 	ghub "golang.org/x/oauth2/github"
 	"gopkg.in/src-d/go-git.v4"
@@ -329,7 +329,7 @@ func processPullRequest(id string, store []string, t *task.Task) {
 		}
 	}
 
-	f := minlog.New(mc, bucket, fmt.Sprintf("%s.log", sha))
+	f := minlog.New(bucket, fmt.Sprintf("%s.log", sha))
 	defer f.Close()
 
 	log := log.New(f, "", 0)
@@ -458,7 +458,7 @@ func processPush(id string, store []string, t *task.Task) {
 	}
 
 	log.Printf("processing push %s/%s:%s fullname:%s", owner, repo, sha, *(pushEvent.GetRepo().FullName))
-	f := minlog.New(mc, bucket, fmt.Sprintf("%s.log", sha))
+	f := minlog.New(bucket, fmt.Sprintf("%s.log", sha))
 	defer f.Close()
 	log := log.New(f, "", 0)
 
@@ -505,6 +505,7 @@ func processPush(id string, store []string, t *task.Task) {
 		Args: []string{
 			"/usr/bin/docker",
 			"build",
+			"--rm",
 			"-f",
 			"Dockerfile.simpleci",
 			"-t",

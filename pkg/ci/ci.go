@@ -21,9 +21,9 @@ import (
 	"time"
 
 	"github.com/golang/glog"
-	"github.com/spf13/viper"
 	"github.com/minio/simple-ci/pkg/coord"
 	"github.com/minio/simple-ci/pkg/task"
+	"github.com/spf13/viper"
 )
 
 func Run() error {
