@@ -28,6 +28,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -215,6 +216,51 @@ func (c *ciHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if strings.HasPrefix(r.URL.Path, "/build/") {
+		vals := strings.Split(r.URL.Path, "/build/")
+		if len(vals) != 2 {
+			log.Printf("error getting owner/repo/sha from url")
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+
+		values := strings.Split(vals[1], "/")
+		if len(values) != 3 {
+			log.Printf("error getting owner/repo/sha from url")
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		owner := values[0]
+		repo := values[1]
+		prStr := values[2]
+
+		pr, err := strconv.Atoi(prStr)
+		if err != nil {
+			w.Write([]byte(err.Error()))
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+		go func() {
+			t := &task.Task{
+				Name:   fmt.Sprintf("build-%s", prStr),
+				Owner:  owner,
+				Repo:   repo,
+				Pr:     pr,
+				Config: c.config,
+				Token:  c.token,
+			}
+			if err := task.AddTask(c.id, c.store, t); err != nil {
+				w.Write([]byte(err.Error()))
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+			w.WriteHeader(http.StatusOK)
+		}()
+
+		return
+	}
+
 	if r.URL.Path == "/webhook" {
 		payload, err := github.ValidatePayload(r, c.webhookSecret)
 		if err != nil {
@@ -262,6 +308,143 @@ func (c *ciHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	c.exchangeToken(w, r)
+}
+
+func processBuild(id string, store []string, t *task.Task) {
+	token := t.Token
+	if token == nil {
+		var err error
+		token, err = task.GetToken(id, store)
+		if err != nil {
+			log.Printf("error getting token: %v", err)
+			return
+		}
+	}
+
+	config := t.Config
+	oauthClient := config.Client(oauth2.NoContext, token)
+	oauthClient.Jar = &gitCookieJar{}
+	client := github.NewClient(oauthClient)
+
+	owner := t.Owner
+	repo := t.Repo
+
+	pr, _, err := client.PullRequests.Get(context.Background(), owner, repo, t.Pr)
+	if err != nil {
+		log.Printf("error getting PR: %v", err)
+		return
+	}
+	head := pr.GetHead()
+	sha := *(head.SHA)
+
+	nameParts := strings.Split(*head.Repo.FullName, "/")
+
+	log.Printf("processing pull_request %s/%s:%s fullname:%s", owner, repo, sha, *head.Repo.FullName)
+	branchRef := plumbing.NewBranchReferenceName(*head.Ref)
+
+	s3URL := viper.GetString("s3-endpoint")
+	accessKey := viper.GetString("s3-access-key")
+	secretKey := viper.GetString("s3-secret")
+	mc, err := minio.New(s3URL, accessKey, secretKey, false)
+	if err != nil {
+		log.Printf("could not connect with s3:%s: user: %s pass: %s err:%v", s3URL, accessKey, secretKey, err)
+		return
+	}
+	bucket := strings.Trim(strings.Replace(id, "/", "-", -1), "-")
+	err = mc.MakeBucket(bucket, "")
+	if err != nil {
+		if err, ok := err.(minio.ErrorResponse); ok {
+			if err.Code != "BucketAlreadyOwnedByYou" {
+				log.Printf("error creating bucket: %s err:%v", bucket, err)
+				return
+
+			}
+		} else {
+			log.Printf("error creating bucket: %s err:%v", bucket, err)
+			return
+		}
+	}
+
+	if obj, err := mc.GetObject(bucket, fmt.Sprintf("%s.log", sha), minio.GetObjectOptions{}); err == nil {
+		if _, err := obj.Stat(); err == nil {
+			log.Printf("commit already processed: %s/%s.log", bucket, sha)
+			return
+		}
+	}
+
+	f := minlog.New(bucket, fmt.Sprintf("%s.log", sha))
+	defer f.Close()
+
+	log := log.New(f, "", 0)
+	if err := updateStatus(config, token, owner, repo, sha, github.String("pending")); err != nil {
+		log.Printf("error updating status for %s%s:%s %v", owner, repo, sha, err)
+		return
+	}
+
+	doneStatus := "error"
+	defer updateStatus(config, token, owner, repo, sha, &doneStatus)
+
+	repoObj, _, err := client.Repositories.Get(context.Background(), nameParts[0], repo)
+	if err != nil {
+		log.Printf("error getting repository: %v", err)
+		return
+	}
+	cloneURL := repoObj.GetCloneURL()
+
+	localRepo, err := git.PlainClone(filepath.Join("tmp", sha, owner, repo), false, &git.CloneOptions{
+		URL:           cloneURL,
+		Progress:      f,
+		ReferenceName: branchRef,
+	})
+	if err != nil {
+		log.Printf("error getting localRepo: %v", err)
+		return
+	}
+	defer os.RemoveAll(filepath.Join("tmp", sha))
+	workTree, err := localRepo.Worktree()
+	if err != nil {
+		log.Printf("error getting worktree: %v", err)
+		return
+	}
+
+	hash := plumbing.NewHash(sha)
+	err = workTree.Checkout(&git.CheckoutOptions{
+		Hash: hash,
+	})
+	if err != nil {
+		log.Printf("error checking out rev: %s", sha)
+		return
+	}
+
+	cwd, err := os.Getwd()
+	if err != nil {
+		log.Printf("error getting current working directory: %v", err)
+		return
+	}
+	cmd := exec.Cmd{
+		Path: "/usr/bin/docker",
+		Args: []string{
+			"/usr/bin/docker",
+			"build",
+			"--rm",
+			"-f",
+			"Dockerfile.simpleci",
+			"-t",
+			fmt.Sprintf("%s/%s:%s", owner, repo, sha),
+			".",
+		},
+		Dir:    filepath.Join(cwd, "tmp", sha, owner, repo),
+		Stdout: f,
+		Stderr: f,
+	}
+	err = cmd.Run()
+	if err != nil {
+		log.Printf("error running ci task for %s/%s:%s: %v", owner, repo, sha, err)
+		doneStatus = "failure"
+		return
+	}
+	doneStatus = "success"
+	return
 }
 
 func processPullRequest(id string, store []string, t *task.Task) {

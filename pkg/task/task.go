@@ -34,6 +34,9 @@ type Task struct {
 	Name             string
 	PullRequestEvent *github.PullRequestEvent
 	PushEvent        *github.PushEvent
+	Owner            string
+	Repo             string
+	Pr               int
 	Token            *oauth2.Token
 	Config           *oauth2.Config
 }

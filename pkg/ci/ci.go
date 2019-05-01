@@ -113,6 +113,9 @@ func processTask(id string, store []string, t *task.Task, errChan chan error) {
 	if t.PushEvent != nil {
 		processPush(id, store, t)
 	}
+	if t.PullRequestEvent == nil && t.PushEvent == nil {
+		processBuild(id, store, t)
+	}
 	glog.Infof("clearing task: %s", t.Name)
 	if err := task.ClearTask(id, store, t); err != nil {
 		glog.Errorf("error clearing task: %s", t.Name)

@@ -141,6 +141,8 @@ github.com/xanzy/ssh-agent v0.2.0/go.mod h1:0NyE30eGUDliuLEHJgYte/zncp2zdTStcOnW
 github.com/xiaq/persistent v0.0.0-20181118145548-6bf9d6baeece h1:pz/DaNKsHnK0KYeynD5A8Y6+1u5pssl3ZXyQArmGz1g=
 github.com/xiaq/persistent v0.0.0-20181118145548-6bf9d6baeece/go.mod h1:cHcGpeiwhhhUL83UhUpQU2gKkVjZJ/XOoRxj43gtdXA=
 github.com/xordataexchange/crypt v0.0.3-0.20170626215501-b2862e3d0a77/go.mod h1:aYKd//L2LvnjZzWKhF00oedf4jCCReLcmhLdhm1A27Q=
+github.com/zmap/zdns v1.0.0-RC1 h1:KMz1jv9bHSPLCw7EGaVWpZZYF8rjA83wIXFtL1ZPRGk=
+github.com/zmap/zdns v1.0.0-RC1/go.mod h1:Sozsr5/H/KwYGdZYC5zjlSAsbV2RPfEa5dcsxmDDK0c=
 github.com/zmb3/gogetdoc v0.0.0-20181208215853-c5ca8f4d4936 h1:+We2eeE8UuACEPcT7Ez1/yK0MN6SAqzy6S2JPxJTycQ=
 github.com/zmb3/gogetdoc v0.0.0-20181208215853-c5ca8f4d4936/go.mod h1:ofmGw6LrMypycsiWcyug6516EXpIxSbZ+uI9ppGypfY=
 go.etcd.io/etcd v3.3.10+incompatible h1:qXVcIR1kU3CYLD8zXDseOmBNwg0uaui53e4Wg4uj0rk=

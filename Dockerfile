@@ -1,4 +1,4 @@
-FROM billyteves/ubuntu-dind:16.04
+FROM wlan0/ubuntu:dind-16.04
 
 COPY simple-ci /
 ADD ui /ui

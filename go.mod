@@ -35,6 +35,7 @@ require (
 	github.com/spf13/viper v1.3.1
 	github.com/stamblerre/gocode v0.0.0-20181212030458-2f9d39d8f31d // indirect
 	github.com/xiaq/persistent v0.0.0-20181118145548-6bf9d6baeece // indirect
+	github.com/zmap/zdns v1.0.0-RC1 // indirect
 	github.com/zmb3/gogetdoc v0.0.0-20181208215853-c5ca8f4d4936 // indirect
 	go.etcd.io/etcd v3.3.10+incompatible
 	golang.org/x/arch v0.0.0-20181203225421-5a4828bb7045 // indirect
