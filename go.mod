@@ -37,3 +37,5 @@ require (
 	gopkg.in/ini.v1 v1.42.0 // indirect
 	gopkg.in/src-d/go-git.v4 v4.8.1
 )
+
+go 1.13
