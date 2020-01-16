@@ -34,7 +34,6 @@ import (
 
 	"github.com/google/go-github/v21/github"
 	"github.com/gorilla/websocket"
-	"github.com/minio/minio-go"
 	"github.com/minio/simple-ci/pkg/minlog"
 	"github.com/minio/simple-ci/pkg/task"
 	"github.com/spf13/viper"
@@ -187,35 +186,6 @@ func (c *ciHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if strings.HasPrefix(r.URL.Path, "/logs/") {
-		vals := strings.Split(r.URL.Path, "/")
-		sha := vals[len(vals)-1]
-
-		mc, err := minio.New(viper.GetString("s3-endpoint"), viper.GetString("s3-access-key"), viper.GetString("s3-secret"), false)
-		if err != nil {
-			log.Printf("could not connect with s3: %v", err)
-			return
-		}
-		id := viper.GetString("id")
-		bucket := strings.Trim(strings.Replace(id, "/", "-", -1), "-")
-		obj, err := mc.GetObject(bucket, fmt.Sprintf("%s.log", sha), minio.GetObjectOptions{})
-		if err != nil {
-			log.Printf("error getting logs from s3: %v", err)
-			return
-		}
-
-		logs, err := ioutil.ReadAll(obj)
-		if err != nil {
-			log.Printf("error reading log file: %v", err)
-			w.WriteHeader(http.StatusNotFound)
-			w.Write([]byte(err.Error()))
-			return
-		}
-		w.WriteHeader(http.StatusOK)
-		w.Write(logs)
-		return
-	}
-
 	if strings.HasPrefix(r.URL.Path, "/build/") {
 		vals := strings.Split(r.URL.Path, "/build/")
 		if len(vals) != 2 {
@@ -342,37 +312,7 @@ func processBuild(id string, store []string, t *task.Task) {
 	log.Printf("processing pull_request %s/%s:%s fullname:%s", owner, repo, sha, *head.Repo.FullName)
 	branchRef := plumbing.NewBranchReferenceName(*head.Ref)
 
-	s3URL := viper.GetString("s3-endpoint")
-	accessKey := viper.GetString("s3-access-key")
-	secretKey := viper.GetString("s3-secret")
-	mc, err := minio.New(s3URL, accessKey, secretKey, false)
-	if err != nil {
-		log.Printf("could not connect with s3:%s: user: %s pass: %s err:%v", s3URL, accessKey, secretKey, err)
-		return
-	}
-	bucket := strings.Trim(strings.Replace(id, "/", "-", -1), "-")
-	err = mc.MakeBucket(bucket, "")
-	if err != nil {
-		if err, ok := err.(minio.ErrorResponse); ok {
-			if err.Code != "BucketAlreadyOwnedByYou" {
-				log.Printf("error creating bucket: %s err:%v", bucket, err)
-				return
-
-			}
-		} else {
-			log.Printf("error creating bucket: %s err:%v", bucket, err)
-			return
-		}
-	}
-
-	if obj, err := mc.GetObject(bucket, fmt.Sprintf("%s.log", sha), minio.GetObjectOptions{}); err == nil {
-		if _, err := obj.Stat(); err == nil {
-			log.Printf("commit already processed: %s/%s.log", bucket, sha)
-			return
-		}
-	}
-
-	f := minlog.New(bucket, fmt.Sprintf("%s.log", sha))
+	f := minlog.New(fmt.Sprintf("%s.log", sha))
 	defer f.Close()
 
 	log := log.New(f, "", 0)
@@ -482,37 +422,7 @@ func processPullRequest(id string, store []string, t *task.Task) {
 	log.Printf("processing pull_request %s/%s:%s fullname:%s", owner, repo, sha, *head.Repo.FullName)
 	branchRef := plumbing.NewBranchReferenceName(*head.Ref)
 
-	s3URL := viper.GetString("s3-endpoint")
-	accessKey := viper.GetString("s3-access-key")
-	secretKey := viper.GetString("s3-secret")
-	mc, err := minio.New(s3URL, accessKey, secretKey, false)
-	if err != nil {
-		log.Printf("could not connect with s3:%s: user: %s pass: %s err:%v", s3URL, accessKey, secretKey, err)
-		return
-	}
-	bucket := strings.Trim(strings.Replace(id, "/", "-", -1), "-")
-	err = mc.MakeBucket(bucket, "")
-	if err != nil {
-		if err, ok := err.(minio.ErrorResponse); ok {
-			if err.Code != "BucketAlreadyOwnedByYou" {
-				log.Printf("error creating bucket: %s err:%v", bucket, err)
-				return
-
-			}
-		} else {
-			log.Printf("error creating bucket: %s err:%v", bucket, err)
-			return
-		}
-	}
-
-	if obj, err := mc.GetObject(bucket, fmt.Sprintf("%s.log", sha), minio.GetObjectOptions{}); err == nil {
-		if _, err := obj.Stat(); err == nil {
-			log.Printf("commit already processed: %s/%s.log", bucket, sha)
-			return
-		}
-	}
-
-	f := minlog.New(bucket, fmt.Sprintf("%s.log", sha))
+	f := minlog.New(fmt.Sprintf("%s.log", sha))
 	defer f.Close()
 
 	log := log.New(f, "", 0)
@@ -613,35 +523,8 @@ func processPush(id string, store []string, t *task.Task) {
 	doneStatus := "error"
 	defer updateStatus(config, token, owner, repo, sha, &doneStatus)
 
-	mc, err := minio.New(viper.GetString("s3-endpoint"), viper.GetString("s3-access-key"), viper.GetString("s3-secret"), false)
-	if err != nil {
-		log.Printf("could not connect with s3: %v", err)
-		return
-	}
-	bucket := strings.Trim(strings.Replace(id, "/", "-", -1), "-")
-	err = mc.MakeBucket(bucket, "")
-	if err != nil {
-		if err, ok := err.(minio.ErrorResponse); ok {
-			if err.Code != "BucketAlreadyOwnedByYou" {
-				log.Printf("error creating bucket: %s err:%v", bucket, err)
-				return
-
-			}
-		} else {
-			log.Printf("error creating bucket: %s err:%v", bucket, err)
-			return
-		}
-	}
-
-	if obj, err := mc.GetObject(bucket, fmt.Sprintf("%s.log", sha), minio.GetObjectOptions{}); err == nil {
-		if _, err := obj.Stat(); err == nil {
-			log.Printf("commit already processed: %s/%s.log", bucket, sha)
-			return
-		}
-	}
-
 	log.Printf("processing push %s/%s:%s fullname:%s", owner, repo, sha, *(pushEvent.GetRepo().FullName))
-	f := minlog.New(bucket, fmt.Sprintf("%s.log", sha))
+	f := minlog.New(fmt.Sprintf("%s.log", sha))
 	defer f.Close()
 	log := log.New(f, "", 0)
 

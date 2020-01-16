@@ -28,13 +28,12 @@ import (
 )
 
 type MinLog struct {
-	log    string
-	bucket string
-	file   string
-	c      *websocket.Conn
+	log  string
+	file string
+	c    *websocket.Conn
 }
 
-func New(bucket, file string) *MinLog {
+func New(file string) *MinLog {
 	u := url.URL{Scheme: "ws", Host: viper.GetString("log-backend"), Path: fmt.Sprintf("/write/%s", file)}
 	log.Printf("connecting to %s", u.String())
 
@@ -44,9 +43,8 @@ func New(bucket, file string) *MinLog {
 	}
 
 	return &MinLog{
-		bucket: bucket,
-		file:   file,
-		c:      c,
+		file: file,
+		c:    c,
 	}
 }
 

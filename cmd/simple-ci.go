@@ -20,9 +20,9 @@ import (
 	"flag"
 	"strings"
 
+	"github.com/minio/simple-ci/pkg/ci"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"github.com/minio/simple-ci/pkg/ci"
 
 	_ "github.com/golang/glog"
 )
@@ -51,10 +51,6 @@ func init() {
 	RootCmd.Flags().String("github-id", "", "github client id of the simple-ci server")
 	RootCmd.Flags().String("github-secret", "", "github secret of the simple-ci server")
 	RootCmd.Flags().String("webhook-secret", "", "webhook secret of the simple-ci github application")
-
-	RootCmd.Flags().String("s3-endpoint", "", "s3 compatible backend to store logs(required)")
-	RootCmd.Flags().String("s3-access-key", "", "access key to the s3 backend")
-	RootCmd.Flags().String("s3-secret", "", "secret key to the s3 backend")
 
 	RootCmd.Flags().String("log-backend", "", "backend to push logs to")
 
