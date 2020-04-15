@@ -152,6 +152,10 @@ func (c *ciHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		log.Printf("connecting to %s", u.String())
 
 		rx, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
+		if err != nil {
+			log.Printf("connecting to %s, failed %s", u.String(), err)
+			return
+		}
 		defer rx.Close()
 		if err == nil {
 			done := make(chan bool, 1)

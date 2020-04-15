@@ -63,5 +63,8 @@ func (m *MinLog) Read(p []byte) (int, error) {
 }
 
 func (m *MinLog) Close() error {
-	return m.c.Close()
+	if m.c != nil {
+		return m.c.Close()
+	}
+	return nil
 }
